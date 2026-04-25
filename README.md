@@ -52,10 +52,7 @@
 - The Annotated Transformer
 
 #### Step A3-2 [2020]
-- On Layer Normalization in the Transformer Architecture
-
-#### Step A3-3 [2020-2021]
-- Pre-LN / Post-LN Transformer 相关论文（如：On Layer Normalization in the Transformer Architecture）
+- [On Layer Normalization in the Transformer Architecture](papers/A3-2.md)
 
 ---
 
