@@ -92,6 +92,8 @@ Swin 的办法是：**在每个 stage 末尾，用 Patch Merging 把相邻 patch
 
 这就引出了 Swin 的第二个关键设计：**窗口自注意力（W-MSA）。**
 
+![Figure 1: Swin Transformer architecture](figures/swin-transformer/fig1-architecture.png)
+
 但先别急——多尺度金字塔和窗口自注意力两者缺一不可。没有窗口自注意力，金字塔搭不起来（Stage 1 算不动）。没有金字塔，窗口自注意力只解决了效率问题，没解决多尺度问题。Swin 的聪明之处在于把这两个问题同时解决。
 
 ## 四、网络架构详解（含 Forward Pass）
@@ -200,16 +202,7 @@ W-MSA 的问题是窗口之间没有信息交流。patch A 在窗口 1，patch B
 
 Swin 的解法非常巧妙：**在 Block 之间交替窗口划分方式。**
 
-```
-第 l 层（W-MSA）        第 l+1 层（SW-MSA）
-┌─────┬─────┬─────┐    ┌─────┬─────┬─────┐
-│  1   │  1   │  2   │    │ 1,2 │ 1,2 │ 1,2 │
-├─────┼─────┼─────┤    ├─────┼─────┼─────┤
-│  1   │  1   │  2   │    │ 1,2 │ 2,3 │ 2,3 │
-├─────┼─────┼─────┤    ├─────┼─────┼─────┤
-│  3   │  3   │  4   │    │ 1,2 │ 3,4 │ 4,4 │
-└─────┴─────┴─────┘    └─────┴─────┴─────┘
-```
+![Figure 2: Shifted window approach](figures/swin-transformer/fig2-shifted-window.png)
 
 颜色相同的区域表示在同一个窗口内。第 l 层用常规网格（4 个窗口），第 l+1 层把网格偏移 $(\lfloor M/2 \rfloor, \lfloor M/2 \rfloor)$——在 7x7 窗口的情况下就是偏移 (3, 3) 个 patch。
 
