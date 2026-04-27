@@ -18,19 +18,19 @@
 - [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](papers/A1-1.md)
 
 #### Step A1-2 [2019]
-- [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](papers/A1-2.md)（T5）
+- [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](papers/A1-2&D3-13.md)（T5）
 
 #### 视觉迁移支
 
 ##### Step A1-3 [2021]
-- [BEiT: BERT Pre-Training of Image Transformers](papers/A1-3.md)
+- [BEiT: BERT Pre-Training of Image Transformers](papers/A1-3&B4-8.md)
 
 ##### Step A1-4 [2021]
-- [Masked Autoencoders Are Scalable Vision Learners](papers/A1-4.md)（MAE）
+- [Masked Autoencoders Are Scalable Vision Learners](papers/A1-4&B4-9.md)（MAE）
 
 ##### Step A1-5 [2022/2023]
-- [EVA: Exploring the Limits of Masked Visual Representation Learning](papers/A1-5-EVA.md)
-- [EVA-02: A Visual Representation for Neon Genesis](papers/A1-5-EVA-02.md)
+- [EVA: Exploring the Limits of Masked Visual Representation Learning](papers/A1-5&B4-10-EVA.md)
+- [EVA-02: A Visual Representation for Neon Genesis](papers/A1-5&B4-10-EVA-02.md)
 
 ### 范式 A2：decoder-only 生成范式
 
@@ -41,10 +41,10 @@
 - [Language Models are Unsupervised Multitask Learners](papers/A2-2.md)（GPT-2）
 
 #### Step A2-3 [2020]
-- [Scaling Laws for Neural Language Models](papers/A2-3.md)
+- [Scaling Laws for Neural Language Models](papers/A2-3&E3-1.md)
 
 #### Step A2-4 [2022]
-- [Training Compute-Optimal Large Language Models](papers/A2-4.md)（Chinchilla）
+- [Training Compute-Optimal Large Language Models](papers/A2-4&E3-2.md)（Chinchilla）
 
 ### 范式 A3：训练稳定性 / 可训练性支撑
 
@@ -64,7 +64,7 @@
 
 #### 范式 B1-1：CNN 参照系
 ##### Step B1-1 [2015]
-- [Deep Residual Learning for Image Recognition](papers/B1-1.md)（ResNet）
+- [Deep Residual Learning for Image Recognition](papers/B1-1&F2-1.md)（ResNet）
 ##### Step B1-2 [2019]
 - [EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks](papers/B1-2.md)
 
@@ -87,7 +87,7 @@
 ##### Step B2-2 [2021]
 - [Swin Transformer: Hierarchical Vision Transformer using Shifted Windows](papers/B2-2.md)
 ##### Step B2-3 [2021]
-- [Multiscale Vision Transformers](papers/B2-3.md)（MViT）
+- [Multiscale Vision Transformers](papers/B2-3&B5-3&B5-8&B5-12.md)（MViT）
 ##### Step B2-4 [2021]
 - [Focal Self-attention for Local-Global Interactions in Vision Transformers](papers/B2-4.md)（Focal Transformer）
 ##### Step B2-5 [2022]
@@ -123,12 +123,12 @@
 
 #### 范式 B4-3：masked image modeling
 ##### Step B4-8 [2021]
-- [BEiT: BERT Pre-Training of Image Transformers](papers/A1-3.md)
+- [BEiT: BERT Pre-Training of Image Transformers](papers/A1-3&B4-8.md)
 ##### Step B4-9 [2021]
-- [Masked Autoencoders Are Scalable Vision Learners](papers/A1-4.md)（MAE）
+- [Masked Autoencoders Are Scalable Vision Learners](papers/A1-4&B4-9.md)（MAE）
 ##### Step B4-10 [2022/2023]
-- [EVA: Exploring the Limits of Masked Visual Representation Learning](papers/A1-5-EVA.md)
-- [EVA-02: A Visual Representation for Neon Genesis](papers/A1-5-EVA-02.md)
+- [EVA: Exploring the Limits of Masked Visual Representation Learning](papers/A1-5&B4-10-EVA.md)
+- [EVA-02: A Visual Representation for Neon Genesis](papers/A1-5&B4-10-EVA-02.md)
 
 ### B5. Transformer 如何 handle 时空视觉任务？
 - 根问题：视频/时空任务能否像图像一样 token 化并由 Transformer 统一建模？
@@ -137,39 +137,39 @@
 - 根问题：时间维如何进入 Transformer？
 ##### 范式 B5-1-1：spatiotemporal tokenization
 - **Step B5-1 [2021]**
-  - [Is Space-Time Attention All You Need for Video Understanding?](papers/B5-1.md)（TimeSformer）
+  - [Is Space-Time Attention All You Need for Video Understanding?](papers/B5-1&B5-4&B5-9.md)（TimeSformer）
 - **Step B5-2 [2021]**
-  - [ViViT: A Video Vision Transformer](papers/B5-2.md)
+  - [ViViT: A Video Vision Transformer](papers/B5-2&B5-5&B5-10.md)
 ##### 范式 B5-1-2：tubelet / temporal patch 路线
 - **Step B5-3 [2021]**
-  - [Multiscale Vision Transformers](papers/B2-3.md)（MViT）
+  - [Multiscale Vision Transformers](papers/B2-3&B5-3&B5-8&B5-12.md)（MViT）
 
 #### B5-2. 时空 attention 如何降低复杂度？
 - 根问题：视频 token 数量巨大时，attention 如何可扩展？
 ##### Step B5-4 [2021]
-- [Is Space-Time Attention All You Need for Video Understanding?](papers/B5-1.md)（TimeSformer）
+- [Is Space-Time Attention All You Need for Video Understanding?](papers/B5-1&B5-4&B5-9.md)（TimeSformer）
 ##### Step B5-5 [2021]
-- [ViViT: A Video Vision Transformer](papers/B5-2.md)
+- [ViViT: A Video Vision Transformer](papers/B5-2&B5-5&B5-10.md)
 ##### Step B5-6 [2021]
-- [Video Swin Transformer](papers/B5-6.md)
+- [Video Swin Transformer](papers/B5-6&B5-7&B5-11.md)
 
 #### B5-3. 视频 backbone 是否需要新的归纳偏置？
 - 根问题：除了空间局部性，还需要时间局部性/运动连续性吗？
 ##### Step B5-7 [2021]
-- [Video Swin Transformer](papers/B5-6.md)
+- [Video Swin Transformer](papers/B5-6&B5-7&B5-11.md)
 ##### Step B5-8 [2021]
-- [Multiscale Vision Transformers](papers/B2-3.md)（MViT）
+- [Multiscale Vision Transformers](papers/B2-3&B5-3&B5-8&B5-12.md)（MViT）
 
 #### B5-4. 是否存在统一时空 encoder 基座模型？
 - 根问题：视频是否也能形成 foundation encoder？
 ##### Step B5-9 [2021]
-- [Is Space-Time Attention All You Need for Video Understanding?](papers/B5-1.md)（TimeSformer）
+- [Is Space-Time Attention All You Need for Video Understanding?](papers/B5-1&B5-4&B5-9.md)（TimeSformer）
 ##### Step B5-10 [2021]
-- [ViViT: A Video Vision Transformer](papers/B5-2.md)
+- [ViViT: A Video Vision Transformer](papers/B5-2&B5-5&B5-10.md)
 ##### Step B5-11 [2021]
-- [Video Swin Transformer](papers/B5-6.md)
+- [Video Swin Transformer](papers/B5-6&B5-7&B5-11.md)
 ##### Step B5-12 [2021]
-- [Multiscale Vision Transformers](papers/B2-3.md)（MViT）
+- [Multiscale Vision Transformers](papers/B2-3&B5-3&B5-8&B5-12.md)（MViT）
 
 ---
 
@@ -269,7 +269,7 @@
 
 #### 范式 D3-1：统一 multimodal seq2seq 范式
 ##### Step D3-13 [2019]
-- [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](papers/A1-2.md)
+- [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer](papers/A1-2&D3-13.md)
 - （T5）
 ##### Step D3-14 [2022]
 - [OFA: Unifying Architectures, Tasks, and Modalities Through a Simple Sequence-to-Sequence Learning Framework](papers/D3-14.md)
@@ -318,10 +318,10 @@
 - 根问题：模型规模、数据规模、算力规模之间是否存在统一规律？
 
 #### Step E3-1 [2020]
-- [Scaling Laws for Neural Language Models](papers/A2-3.md)
+- [Scaling Laws for Neural Language Models](papers/A2-3&E3-1.md)
 
 #### Step E3-2 [2022]
-- [Training Compute-Optimal Large Language Models](papers/A2-4.md)（Chinchilla）
+- [Training Compute-Optimal Large Language Models](papers/A2-4&E3-2.md)（Chinchilla）
 
 ### E4. 如何参数高效微调与低成本适配？
 - 根问题：大模型时代，如何低成本微调和适配？
@@ -368,7 +368,7 @@
 
 #### 范式 F2-1：连续深度 / 动力系统范式
 ##### Step F2-1 [2015]
-- [Deep Residual Learning for Image Recognition](papers/B1-1.md)（ResNet）
+- [Deep Residual Learning for Image Recognition](papers/B1-1&F2-1.md)（ResNet）
 ##### Step F2-2 [2018]
 - [Neural Ordinary Differential Equations](papers/F2-2.md)
 ##### Step F2-3 [2019]
