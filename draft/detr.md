@@ -1,0 +1,310 @@
+# End-to-End Object Detection with Transformers（2020）
+
+**论文：** [arXiv](https://arxiv.org/abs/2005.12872) · Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, Sergey Zagoruyko (Facebook AI) · 2020（DETR）
+
+---
+
+## 一、先搞清楚坑在哪
+
+目标检测是计算机视觉的核心任务之一：给出一张图片，找出其中所有物体，并为每个物体标出类别和边界框。2015 年以来，Faster R-CNN 为代表的检测器一直是主流方案，但它们的流程极其复杂：
+
+1. 先用 CNN backbone 提取特征图
+2. 再在特征图上铺大量预定义的 anchor box（~10 万个）
+3. 对每个 anchor 做二分类（有没有物体）+ 回归微调位置
+4. 最后用非极大值抑制（NMS）去掉大量冗余的重复框
+
+这个流水线里的每个环节都有人工设计的启发式规则：anchor 的大小比例怎么定？NMS 的 交并比（Intersection over Union, IoU） 阈值设多少？分配 ground truth 到 anchor 时用什么样的匹配策略？[Zhang et al., 2020] 的研究表明，这些设计选择对最终性能影响巨大，但很多都是靠经验试出来的，缺少理论依据。
+
+## 二、现有方法的真正问题
+
+传统检测器的核心问题可以归结为两点：
+
+**问题 1：间接的预测方式。** 检测器不是直接预测「这张图里有哪些物体」，而是先铺大量候选（anchor/proposal），再对每个候选做分类和回归。这意味着大部分候选框都是背景，正负样本极度不均衡，需要各种技巧来缓解（Focal Loss、OHEM、正负样本采样等）。
+
+**问题 2：手工设计的后处理。** NMS 是检测流水线中绕不开的一步——因为模型天然会产生多个重叠框包围同一个物体。NMS 的阈值设定对不同密度、不同尺度的场景敏感，且不可微分，没法端到端训练。
+
+DETR 的目标就是彻底去掉这两套手工设计，把检测做成一个**直接的 set prediction 问题**。
+
+## 三、DETR 的核心思路
+
+**把目标检测看作直接的集合预测问题：用一个 Transformer 一次性输出所有物体的集合，通过二分图匹配（Hungarian algorithm）让预测和 ground truth 一一对应，彻底替代 anchor + NMS 流程。**
+
+核心三要素：
+
+1. **二分图匹配损失**：训练时，用 Hungarian 算法在预测和真实框之间找到最优的一对一匹配，然后只对匹配上的对计算损失。这天然消除了重复框——因为每个真实框只能匹配一个预测框，多余的自然被分到"无物体"（∅）类。
+
+2. **Transformer encoder-decoder**：编码器在整张图的特征上做全局自注意力，捕获所有物体之间的关系。解码器用一组可学习的 object queries 并行解码所有检测结果。
+
+3. **直接框预测**：不像 anchor-based 方法预测相对偏移，DETR 直接预测框的绝对坐标（中心点 x、y、宽高 w、h），配合 IoU 损失 + L1 损失的组合。
+
+## 四、网络架构详解
+
+### 整体架构
+
+```
+输入图片 (H × W × 3)
+    │
+    ▼
+CNN Backbone (ResNet-50)
+    │
+    ▼ 特征图 (H/32 × W/32 × 2048)
+    │
+    ▼ 1×1 conv 降维 → (h × w × 256)
+    │
+    ┌─────────────────────────────────────────┐
+    │         Transformer Encoder              │
+    │   ┌──────────────────────────────────┐   │
+    │   │  ┌────────┐  ┌────────┐         │   │
+    │   │  │Self-Att│  │Self-Att│  ... ×6  │   │
+    │   │  │ + FFN  │  │ + FFN  │         │   │
+    │   │  └────────┘  └────────┘         │   │
+    │   └──────────────────────────────────┘   │
+    └──────────────────┬──────────────────────┘
+                       │ encoder output
+                       ▼
+    ┌─────────────────────────────────────────┐
+    │         Transformer Decoder              │
+    │   ┌──────────────────────────────────┐   │
+    │   │  ┌────────┐  ┌────────┐         │   │
+    │   │  │Self-Att│  │Cross-Att│  ... ×6 │   │
+    │   │  │ + FFN  │  │ + FFN  │         │   │
+    │   │  └────────┘  └────────┘         │   │
+    │   │   ↑                  ↑          │   │
+    │   │ Object Queries (N×256)          │   │
+    │   └──────────────────────────────────┘   │
+    └──────────────────┬──────────────────────┘
+                       │ decoder output (N × 256)
+                       ▼
+             FFN (3层 MLP)  × N
+                       │
+                       ▼
+          N 个预测: (class, box)
+```
+
+### 各组件详解
+
+**Backbone**：ResNet-50 或 ResNet-101，去掉最后的平均池化和全连接层。输入图片缩放后输出特征图 $f \in \mathbb{R}^{H/32 \times W/32 \times 2048}$。用 1×1 卷积降维到 $d=256$ 维：$z_0 \in \mathbb{R}^{h \times w \times 256}$。
+
+**前馈网络（Feed-Forward Network, FFN）**：每个 Transformer 层中的两层的 MLP，先升维再降维，提供非线性变换。标准的 FFN 包含两个线性变换和一个 ReLU 激活：$	ext{FFN}(x) = \max(0, xW_1 + b_1)W_2 + b_2$。
+
+**Positional Encoding**：由于 Transformer 是置换不变的（permutation invariant），需要给特征图的每个位置注入空间位置信息。DETR 使用固定（非可学习）的正余弦位置编码，每个位置有 $d$ 维编码，加到 encoder 的输入上。
+
+**Encoder**：标准的 Transformer encoder，6 层，每层包含 multi-head self-attention + FFN。输入是展平后的特征图序列 $(hw)$ 个 token，每个 256 维。自注意力的全局感受野让 encoder 能够建模任意两个像素之间的长距离依赖，这对检测大物体尤其重要。
+
+**Object Queries**：N 个可学习的嵌入向量（N=100，比 COCO 图片中最大物体数 63 大）。每个 query 负责预测一个物体。这些 queries 在训练过程中学会关注图片的不同区域和不同类别的物体。
+
+**Decoder**：标准的 Transformer decoder，6 层。每层做：
+1. Self-attention（object queries 之间互相通信，避免重复预测）
+2. Cross-attention（关注 encoder 输出的图像特征）
+3. FFN
+
+**Prediction FFN**：3 层 MLP（ReLU 激活，隐藏层 256 维），输出 $N$ 个预测，每个包含：
+- 类别 logits（COCO 原始 ID 编号 91 个有效位 + ∅，实际 80 个物体类）
+- 边界框坐标 $(c_x, c_y, w, h)$（相对于图片归一化到 [0,1]）
+
+### 前向传播（以 ResNet-50 + 800×1333 输入为例）
+
+1. **输入到特征图**：$3 \times 800 \times 1333$ → ResNet-50 → $2048 \times 25 \times 42$ → 1×1 conv → $256 \times 25 \times 42$
+2. **展平 + 编码**：$(25 \times 42) = 1050$ 个 token，每个 256 维。加上位置编码。
+3. **Encoder**：6 层 Transformer encoder，每层 $1050 \times 256$ → $1050 \times 256$
+4. **Decoder**：100 个 object queries（$100 \times 256$），每层做 self-attention + cross-attention + FFN
+5. **输出**：100 个预测，每个含 92 类 logits + 4 个框坐标
+
+## 五、核心创新点
+
+### 创新 1：Hungarian 损失 — 端到端集合预测
+
+**（a）痛点与动机：**
+传统检测器的损失函数基于每个 anchor/proposal 独立分类和回归，然后通过 NMS 后处理合并。这意味着训练时的优化目标和测试时的评估指标（mAP，基于集合匹配的）是不一致的。模型在训练时并不知道哪些预测会被 NMS 保留下来。
+
+**（b）方案细节：**
+DETR 把检测损失分成两步：
+
+**第 1 步：二分图匹配。** 对 ground truth 集合 $y$（用 ∅ 填充到 N 个）和预测集合 $\hat{y}$，寻找最优排列 $\sigma$：
+
+$$
+\hat{\sigma} = \underset{\sigma \in \mathfrak{S}_N}{\arg\min} \sum_{i}^{N} \mathcal{L}_{\text{match}}(y_i, \hat{y}_{\sigma(i)})
+$$
+
+匹配代价 $\mathcal{L}_{\text{match}}$ 结合了类别的预测概率和框的 IoU + L1 距离。
+
+**第 2 步：Hungarian 损失。** 对最优匹配 $\hat{\sigma}$ 对应的 pair 计算实际损失：
+
+$$
+\mathcal{L}_{\text{Hungarian}}(y, \hat{y}) = \sum_{i=1}^{N} \left[ -\log \hat{p}_{\hat{\sigma}(i)}(c_i) + \mathbb{1}_{\{c_i \neq \varnothing\}} \mathcal{L}_{\text{box}}(b_i, \hat{b}_{\hat{\sigma}(i)}) \right]
+$$
+
+其中框损失是 L1 损失和 generalized IoU 损失的线性组合：
+
+$$
+\mathcal{L}_{\text{box}}(b_i, \hat{b}_{\sigma(i)}) = \lambda_{\text{iou}} \mathcal{L}_{\text{iou}}(b_i, \hat{b}_{\sigma(i)}) + \lambda_{\text{L1}} \|b_i - \hat{b}_{\sigma(i)}\|_1
+$$
+
+**（c）为什么有效：**
+Hungarian 匹配保证了一对一的 unique 分配——每个 ground truth 只匹配一个预测，其余预测自然成为"无物体"类。这从根本上消除了重复检测的必要性，NMS 就可以被完全去掉。论文 Section 4.2 的消融显示：去掉 Hungarian 匹配、改用固定配对后 AP 从约 40.1 降到 36.7（-3.4）。
+
+**（d）与 Related Work 的关系：**
+将集合预测与 Hungarian 损失结合的想法并非 DETR 首创——之前的工作 [Stewart et al., 2016; Romera-Paredes & Torr, 2016] 已经用过。但 DETR 的不同在于：它用 Transformer 进行**并行非自回归**解码，而不是 RNN 自回归，使得训练和推理都更高效。
+
+**（e）消融证据：**
+论文 Table 4 对比了 L1、GIoU、L1+GIoU 三种框损失组合。纯 L1 损失 AP 最低（39.5），纯 GIoU 也不够（39.3），两者结合达到 40.1。同时 L1 损失的权重 $\lambda_{\text{L1}}$ 设为 5，$\lambda_{\text{iou}}$ 设为 2（经验最优）。
+
+### 创新 2：Object Queries — 可学习的检测锚点
+
+**（a）痛点与动机：**
+传统方法在特征图上铺大量固定 anchor box。这些 anchor 的尺寸、比例靠统计数据集得到，且数量巨大（~10 万/图）。能不能让模型自己学习在哪里找什么类型的物体？
+
+**（b）方案细节：**
+DETR 引入 N=100 个可学习的向量（object queries），初始化为随机嵌入，随训练更新。每个 query 通过 cross-attention 从特征图中检索信息，最终预测一个物体。
+
+**（c）为什么有效：**
+可视化实验（论文 Figure 5）显示：训练结束后，不同的 object queries 学会了关注图片的不同区域（左上角、中心、右下角等）和不同尺度（大物体、小物体）。这相当于模型自动学习了 anchor 的分布，而且是数据驱动的、可适应的。
+
+### 创新 3：Encoder 全局自注意力替代局部卷积
+
+**（a）痛点与动机：**
+CNN 的卷积核受限于局部感受野（3×3、7×7），要扩大感受野必须堆叠更多层或使用空洞卷积。对于检测大物体——比如占据图片 1/3 的大象——CNN 需要深层才能建立全局连接。
+
+**（b）方案细节：**
+DETR 的 encoder 在展平的特征图（~1000 个 token）上做 full self-attention，每个 token 可以看到其他所有 token。这本质上等同于一个 Non-Local Neural Network [Wang et al., 2018]。
+
+**（c）实验结果：**
+论文 Table 5 的消融显示：去掉 encoder 后 AP 从 40.1 降到 32.3（-7.8！），其中大物体 $AP_L$ 从 49.2 降到 37.5（-11.7）。这说明 encoder 的全局注意力对大物体的检测至关重要。相比之下，小物体 $AP_S$ 只降了 3.7（22.6 → 18.9），说明小物体更依赖局部特征。
+
+## 六、公式详解
+
+### 6.1 Hungarian 匹配
+
+给定 N 个 ground truth（含 ∅ 填充）和 N 个预测，寻找代价最低的一对一匹配：
+
+**匹配代价矩阵**：$\mathcal{L}_{\text{match}}(y_i, \hat{y}_j) = -\mathbb{1}_{\{c_i \neq \varnothing\}} \hat{p}_j(c_i) + \mathbb{1}_{\{c_i \neq \varnothing\}} \mathcal{L}_{\text{box}}(b_i, \hat{b}_j)$
+
+其中第一项是负的分类概率（越大越好），第二项是框距离（越小越好）。
+匹配使用 Hungarian 算法（O(N³) 复杂度，N=100 时可忽略）。
+
+### 6.2 框损失
+
+$$
+\mathcal{L}_{\text{box}} = 5 \times \|b_i - \hat{b}_j\|_1 + 2 \times \mathcal{L}_{\text{IoU}}(b_i, \hat{b}_j)
+$$
+
+GIoU 损失计算：$\mathcal{L}_{\text{IoU}} = 1 - \text{GIoU}$，其中 GIoU 在标准 IoU 基础上加上了最小外接矩形和并集的面积比，对不重叠的框也能提供梯度。
+
+**直觉**：L1 损失对大小框的尺度敏感——大框差几个像素影响不大，小框差几个像素就完全偏离了。GIoU 是尺度不变的，无论框的大小，匹配程度都在 [0,1] 之间。两者结合既保留了 L1 的精确性，又引入了 GIoU 的尺度不变性。
+
+### 6.3 复杂度
+
+Encoder self-attention：$O(h^2 w^2 d)$。对 800×1333 输入，特征图 25×42 = 1050 token，$1050^2 \times 256 \approx 282M$ 乘加。这个复杂度限制了 DETR 在高分辨率输入上的扩展性（后续 Deformable DETR 解决了这个问题）。
+
+## 七、实验结果
+
+### COCO 检测（论文 Table 1）
+
+| 方法 | 骨干网络 | epoch | AP | AP₅₀ | AP₇₅ | $AP_S$ | $AP_M$ | $AP_L$ |
+|------|---------|-------|-----|------|------|------|------|------|
+| Faster R-CNN+ | ResNet-50-FPN | 109 | 40.2 | 61.0 | 43.8 | 24.2 | 43.5 | 52.0 |
+| **DETR** | ResNet-50 | 500 | **42.0** | **62.4** | **44.2** | **20.5** | **45.8** | **61.1** |
+| Faster R-CNN+ | ResNet-101-FPN | 109 | 42.0 | 62.5 | 45.9 | 25.0 | 45.6 | 54.6 |
+| **DETR** | ResNet-101 | 500 | **43.5** | **63.8** | **46.4** | **22.5** | **47.3** | **61.9** |
+
+**关键发现**：
+- DETR 在 $AP_L$（大物体）上远超 Faster R-CNN（61.1 vs 52.0），因为 Transformer 的全局注意力在建模大物体时优势明显
+- DETR 在 $AP_S$（小物体, <32² 像素）上明显落后（20.5 vs 24.2），因为特征图分辨率低（32 倍下采样），小物体的细节信息已经丢失
+- DETR 需要 **500 epoch** 训练（Faster R-CNN 只需要 ~109 epoch），收敛速度慢是其主要缺点之一
+
+### 消融实验（论文 Table 4 — 损失函数）
+
+| 框损失 | AP |
+|--------|-----|
+| L1 | 39.5 |
+| GIoU | 39.3 |
+| L1 + GIoU | **40.1** |
+
+### Encoder 层数消融（论文 Table 5）
+
+| Encoder 层数 | $AP$ | $AP_L$ |
+|-------------|-----|------|
+| 0（无 encoder） | 32.3 | 37.5 |
+| 1 | 36.9 | 48.5 |
+| 3 | 39.2 | 49.6 |
+| 6 | **40.1** | **49.2** |
+
+6 层 encoder 最优，但 3 层已经接近。注意没有 encoder（0 层）时大物体 AP 暴跌（49.2 → 37.5），验证了全局注意力对大物体的价值。
+
+## 八、代码对照
+
+DETR 的官方实现位于 [github.com/facebookresearch/detr](https://github.com/facebookresearch/detr)，在 PyTorch 中约 500 行。
+
+### 关键代码
+
+**HungarianMatcher**：
+```python
+class HungarianMatcher(nn.Module):
+    def __init__(self, cost_class=1, cost_bbox=1, cost_giou=1):
+        super().__init__()
+        self.cost_class = cost_class
+        self.cost_bbox = cost_bbox
+        self.cost_giou = cost_giou
+
+    @torch.no_grad()
+    def forward(self, outputs, targets):
+        # 计算匹配代价矩阵
+        cost_class = -out_prob[:, tgt_ids]  # 只取 target 类别的概率
+        cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)  # L1 代价
+        cost_giou = -giou(box_cxcywh_to_xyxy(out_bbox),
+                          box_cxcywh_to_xyxy(tgt_bbox))  # GIoU 代价
+        C = self.cost_class * cost_class + \
+            self.cost_bbox * cost_bbox + \
+            self.cost_giou * cost_giou
+        # Hungarian 算法（scipy.optimize.linear_sum_assignment）
+        indices = linear_sum_assignment(C.cpu())
+```
+
+**DETR 前向传播**：
+```python
+class DETR(nn.Module):
+    def forward(self, x):
+        x = self.backbone(x)           # CNN backbone
+        
+        hs = self.transformer(x, self.query_embed.weight)
+        outputs_class = self.class_embed(hs[-1])
+        outputs_coord = self.bbox_embed(hs[-1]).sigmoid()
+        return outputs_class, outputs_coord    # FFN 预测
+```
+
+其中 `query_embed` 是 `nn.Embedding(100, 256)`，即 100 个可学习的 object queries。
+
+## 九、位置
+
+### 前驱工作
+
+- **Faster R-CNN [Ren et al., 2015]**：两阶段检测器的代表，RPN + RoI pooling 的范式。DETR 的目标就是去掉其人工设计的 anchor 和 NMS。
+- **Non-Local Neural Networks [Wang et al., 2018]**：首次将自注意力引入视觉。DETR 的 encoder 本质上是 Non-Local 模块的堆叠。
+- **Relation Networks [Hu et al., 2018]**：在检测器中用注意力模块建模物体间关系。DETR 将其内置到了 Transformer 架构中。
+
+### 同期竞品
+
+- **Deformable DETR [Zhu et al., 2021]**：用可变形注意力替代全局注意力，大幅降低复杂度并加速收敛（10 epoch 达到 DETR 50 epoch 的效果）。
+- **DAB-DETR [Liu et al., 2022]**：将 object queries 改为 4D anchor box（x, y, w, h），提供明确的空间先验。
+- **DN-DETR [Li et al., 2022]**：通过去噪训练加速收敛。
+- **DINO [Zhang et al., 2023]**：结合去噪 + 对比去噪 + 混合 query 选择，达到 SOTA。
+
+### 后续影响
+
+DETR 开启了一个**端到端检测器**的研究范式。2021-2023 年几乎所有检测领域的突破（Deformable DETR、DINO、Group DETR、H-DETR）都是在 DETR 框架上的改进。它证明了 Transformer 在视觉任务中不仅仅是 backbone，还可以作为 task head。
+
+## 十、局限
+
+1. **收敛慢**。DETR 需要 500 epoch 训练，而 Faster R-CNN 只需要 ~109 epoch。主要原因是 Hungarian 匹配在训练初期不稳定——queries 还没学会定位物体时，匹配频繁变动导致梯度信号不稳定。Deformable DETR 通过可变形注意力将 epoch 需求降到了 50。
+
+2. **小物体检测差**。特征图分辨率 32 倍下采样后，小物体的像素已经几乎丢失。FPN 可以缓解这个问题，但 DETR 的原始设计中没有 FPN。
+
+3. **计算复杂度高**。Encoder 的全局自注意力 $O(h^2 w^2 d)$ 限制了高分辨率输入。COCO 评估使用 800×1333 已经是极限，更大的输入需要更多显存。
+
+4. **训练技巧敏感**。DETR 的稳定训练依赖于一些技巧：auxiliary loss（每层 decoder 都做预测）、dropout（0.1）、梯度裁剪等。
+
+## 十一、小结
+
+DETR 的核心贡献是**把目标检测从复杂的 anchor + NMS 流水线简化成了直接的集合预测问题**。它用 Transformer 的全局自注意力 + Hungarian 匹配损失，第一次在 COCO 上实现了端到端检测，性能和 Faster R-CNN 打平的同时，架构极其简洁。
+
+它的 broader impact：开启了端到端检测器的研究方向，启发了后续大量的 DETR 变体，并将 Transformer 在视觉中的应用从纯分类（ViT）扩展到了 dense prediction 任务。
