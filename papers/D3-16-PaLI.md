@@ -1,9 +1,9 @@
-# PaLI: A Jointly-Scaled Multilingual Language-Image Model（2022）
+# PaLI（2022）
 
-**论文：** [arXiv](https://arxiv.org/abs/2209.06794) · Chen et al. · 2022
+**论文：** ViT encoder + UL2 decoder，100+ 语言多模态预训练。
 
 ---
 
-# 内容
+# PaLI-X（2023）
 
-TODO
+**论文：** 55B 参数，21 个多模态 benchmark SOTA。

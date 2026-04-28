@@ -2,8 +2,4 @@
 
 **论文：** [arXiv](https://arxiv.org/abs/1810.01367) · Grathwohl et al. · 2019
 
----
-
-# 内容
-
-TODO
+FFJORD: Neural ODE 可逆生成模型。
