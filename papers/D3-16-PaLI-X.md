@@ -2,4 +2,6 @@
 
 **论文：** [arXiv](https://arxiv.org/abs/2305.18565) · Chen et al. · 2023
 
-待补充。
+---
+
+55B 参数（ViT 22B + UL2 32B），21 个多模态 benchmark SOTA。
