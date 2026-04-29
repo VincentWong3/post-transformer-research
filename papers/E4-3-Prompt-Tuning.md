@@ -1,18 +1,19 @@
-# The Power of Scale for Parameter-Efficient Prompt Tuning (2021)
+# The Power of Scale for Prompt Tuning (2021)
 
 **论文：** [arXiv:2104.08691](https://arxiv.org/abs/2104.08691) · Brian Lester, Rami Al-Rfou, Noah Constant · Google · EMNLP 2021
 
 ---
 
-## 核心思路
+## 一、核心思路
 
-在输入层前拼接可学习的 soft prompt token embedding（不经过 MLP 重参数化），冻结整个 LLM。
+在输入层前拼接可学习的 soft prompt token embedding（不需要每层添加）。**比 Prefix-Tuning 更简单。**
 
-**关键发现：**
-- 模型规模越大，prompt tuning 越接近 fine-tune 性能
-- T5-XXL（11B）上 prompt tuning 与 fine-tune 几乎无差距
-- Prompt 长度 5-20 即可（不需要 100+）
-- 比 prefix tuning 更简单（只在输入层加，不在每层加）
+## 二、关键发现
+
+- 模型规模越大，prompt tuning 越接近 fine-tune
+- T5-XXL（11B）上 prompt tuning 与 fine-tune 几乎没有差距
+- Prompt 长度 5-20 即可（不需要更多）
+- **不需要重参数化 MLP**（直接优化即可），简化了 Prefix-Tuning 的架构
 
 ---
 

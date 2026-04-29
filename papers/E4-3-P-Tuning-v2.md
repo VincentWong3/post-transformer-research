@@ -4,15 +4,21 @@
 
 ---
 
-## 核心思路
+## 一、核心问题
 
-Prompt Tuning v1 只在输入层加 prompt（效果好但不够），P-Tuning v2 在每个 Transformer layer 的输入前加 prompt token，并在 prompt 后接 MLP 做重参数化。
+Prompt Tuning v1 只在输入层加 prompt，在中小模型上效果不好。**P-Tuning v2 的改进：在每一层都加 prompt。**
 
-**改进点：**
-- 多层 prompt（每一层都加）比单层好得多
-- 使用重参数化（MLP）提升训练稳定性
-- 在小模型和大模型上都有效（Prompt Tuning v1 只在超大模型上有效）
-- 在分类、序列标注、QA 等任务上达到 fine-tune 水平
+## 二、方法
+
+- 在每一层 Transformer 的输入前添加 prompt token
+- Prompt 后接 MLP 做重参数化
+- 同时优化所有层的 prompt
+
+## 三、结果
+
+- 小模型和大模型上都有效（v1 只在超大模型有效）
+- 分类、序列标注、QA 等任务达到 fine-tune 水平
+- 解决了 prompt tuning 在 NLU 任务上的不足
 
 ---
 
